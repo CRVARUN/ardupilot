@@ -22,11 +22,11 @@
 extern const AP_HAL::HAL& hal;
 AP_RPM_Pin::IrqState AP_RPM_Pin::irq_state[RPM_MAX_INSTANCES];
 
-/* 
+/*
    open the sensor in constructor
 */
-AP_RPM_Pin::AP_RPM_Pin(AP_RPM &_ap_rpm, uint8_t instance, AP_RPM::RPM_State &_state) :
-	AP_RPM_Backend(_ap_rpm, instance, _state)
+AP_RPM_Pin::AP_RPM_Pin(AP_RPM& _ap_rpm, uint8_t instance, AP_RPM::RPM_State& _state) :
+    AP_RPM_Backend(_ap_rpm, instance, _state)
 {
 }
 
@@ -40,7 +40,7 @@ void AP_RPM_Pin::irq_handler(uint8_t pin, bool pin_state, uint32_t timestamp)
     // we don't accept pulses less than 100us. Using an irq for such
     // high RPM is too inaccurate, and it is probably just bounce of
     // the signal which we should ignore
-    if (dt > 100 && dt < 1000*1000) {
+    if (dt > 100 && dt < 1000 * 1000) {
         irq_state[state.instance].dt_sum += dt;
         irq_state[state.instance].dt_count++;
     }
@@ -62,9 +62,9 @@ void AP_RPM_Pin::update(void)
         if (last_pin) {
             hal.gpio->pinMode(last_pin, HAL_GPIO_INPUT);
             if (!hal.gpio->attach_interrupt(
-                    last_pin,
-                    FUNCTOR_BIND_MEMBER(&AP_RPM_Pin::irq_handler, void, uint8_t, bool, uint32_t),
-                    AP_HAL::GPIO::INTERRUPT_RISING)) {
+                last_pin,
+                FUNCTOR_BIND_MEMBER(&AP_RPM_Pin::irq_handler, void, uint8_t, bool, uint32_t),
+                AP_HAL::GPIO::INTERRUPT_RISING)) {
                 gcs().send_text(MAV_SEVERITY_WARNING, "RPM: Failed to attach to pin %u", last_pin);
             }
         }
@@ -74,35 +74,37 @@ void AP_RPM_Pin::update(void)
         float dt_avg;
 
         // disable interrupts to prevent race with irq_handler
-        void *irqstate = hal.scheduler->disable_interrupts_save();
+        void* irqstate = hal.scheduler->disable_interrupts_save();
         dt_avg = irq_state[state.instance].dt_sum / irq_state[state.instance].dt_count;
         irq_state[state.instance].dt_count = 0;
         irq_state[state.instance].dt_sum = 0;
         hal.scheduler->restore_interrupts(irqstate);
 
         const float scaling = ap_rpm._scaling[state.instance];
-        float maximum = ap_rpm._maximum[state.instance];
-        float minimum = ap_rpm._minimum[state.instance];
+        float maximum = ap_rpm._maximum.get();
+        float minimum = ap_rpm._minimum.get();
         float quality = 0;
         float rpm = scaling * (1.0e6 / dt_avg) * 60;
         float filter_value = signal_quality_filter.get();
 
         state.rate_rpm = signal_quality_filter.apply(rpm);
-        
+
         if ((maximum <= 0 || rpm <= maximum) && (rpm >= minimum)) {
-            if (is_zero(filter_value)){
+            if (is_zero(filter_value)) {
                 quality = 0;
-            } else {
-                quality = 1 - constrain_float((fabsf(rpm-filter_value))/filter_value, 0.0, 1.0);
+            }
+            else {
+                quality = 1 - constrain_float((fabsf(rpm - filter_value)) / filter_value, 0.0, 1.0);
                 quality = powf(quality, 2.0);
             }
             state.last_reading_ms = AP_HAL::millis();
-        } else {
+        }
+        else {
             quality = 0;
         }
         state.signal_quality = (0.1 * quality) + (0.9 * state.signal_quality);
     }
-    
+
     // assume we get readings at at least 1Hz, otherwise reset quality to zero
     if (AP_HAL::millis() - state.last_reading_ms > 1000) {
         state.signal_quality = 0;

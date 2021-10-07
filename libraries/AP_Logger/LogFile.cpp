@@ -422,7 +422,7 @@ void AP_Logger::Write_(const AP_RPM &rpm_sensor)
         rpm1        : rpm1,
         rpm2        : rpm2,
  	    rpm3        : rpm3,
-        rpm4        : rpm4,
+        rpm4        : rpm4
 
     };
     WriteBlock(&pkt, sizeof(pkt));

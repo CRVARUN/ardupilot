@@ -19,8 +19,8 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
 
-// Maximum number of RPM measurement instances available on this platform
-#define RPM_MAX_INSTANCES 2
+ // Maximum number of RPM measurement instances available on this platform
+#define RPM_MAX_INSTANCES 4
 
 class AP_RPM_Backend;
 
@@ -32,14 +32,19 @@ public:
     AP_RPM();
 
     /* Do not allow copies */
-    AP_RPM(const AP_RPM &other) = delete;
-    AP_RPM &operator=(const AP_RPM&) = delete;
+    AP_RPM(const AP_RPM& other) = delete;
+    AP_RPM& operator=(const AP_RPM&) = delete;
 
     // RPM driver types
     enum RPM_Type {
-        RPM_TYPE_NONE    = 0,
-        RPM_TYPE_PWM     = 1,
-        RPM_TYPE_PIN     = 2
+        RPM_TYPE_NONE = 0,
+        RPM_TYPE_PWM = 1,
+        RPM_TYPE_PIN = 2,
+        RPM_TYPE_EFI = 3,
+        RPM_TYPE_HNTCH = 4,
+#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
+        RPM_TYPE_SITL = 10,
+#endif
     };
 
     // The RPM_State structure is filled in by the backend driver
@@ -54,9 +59,9 @@ public:
     AP_Int8  _type[RPM_MAX_INSTANCES];
     AP_Int8  _pin[RPM_MAX_INSTANCES];
     AP_Float _scaling[RPM_MAX_INSTANCES];
-    AP_Float _maximum[RPM_MAX_INSTANCES];
-    AP_Float _minimum[RPM_MAX_INSTANCES];
-    AP_Float _quality_min[RPM_MAX_INSTANCES];
+    AP_Float _maximum;
+    AP_Float _minimum;
+    AP_Float _quality_min;
 
     static const struct AP_Param::GroupInfo var_info[];
 
@@ -74,12 +79,7 @@ public:
     /*
       return RPM for a sensor. Return -1 if not healthy
      */
-    float get_rpm(uint8_t instance) const {
-        if (!healthy(instance)) {
-            return -1;
-        }
-        return state[instance].rate_rpm;
-    }
+    bool get_rpm(uint8_t instance, float& rpm_value) const;
 
     /*
       return signal quality for a sensor.
@@ -92,18 +92,18 @@ public:
 
     bool enabled(uint8_t instance) const;
 
-    static AP_RPM *get_singleton() { return _singleton; }
+    static AP_RPM* get_singleton() { return _singleton; }
 
 private:
-    static AP_RPM *_singleton;
+    static AP_RPM* _singleton;
 
     RPM_State state[RPM_MAX_INSTANCES];
-    AP_RPM_Backend *drivers[RPM_MAX_INSTANCES];
-    uint8_t num_instances:2;
+    AP_RPM_Backend* drivers[RPM_MAX_INSTANCES];
+    uint8_t num_instances : 3;  // This is a bit field not =
 
     void detect_instance(uint8_t instance);
 };
 
 namespace AP {
-    AP_RPM *rpm();
+    AP_RPM* rpm();
 };
